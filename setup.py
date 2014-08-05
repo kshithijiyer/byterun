@@ -10,5 +10,5 @@ setup(
     author_email='ned@nedbatchelder.com',
     url='http://github.com/nedbat/byterun',
     packages=['byterun'],
-    install_requires=['six'],
+    install_requires=['six', 'pytypedecl'],
     )
