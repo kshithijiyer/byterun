@@ -100,9 +100,9 @@ class Type(object):
     elif isinstance(other, Variable):
       return self.constraint_store.new_variable_supertype(other, self)
     else:
-      raise NotImplementedError("self: {} of type {}, other: {} of type {}"
-                                .format(self, self.__class__,
-                                        other, other.__class__))
+      raise TypeError("self: {} of type {}, other: {} of type {}"
+                      .format(self, self.__class__,
+                              other, other.__class__))
 
   def meet(self, other):
     if isinstance(other, (Object, Nothing, Dynamic)):
@@ -112,12 +112,14 @@ class Type(object):
     elif isinstance(other, Variable):
       return self.constraint_store.new_variable_subtype(other, self)
     else:
-      raise NotImplementedError("self: {} of type {}, other: {} of type {}"
-                                .format(self, self.__class__,
-                                        other, other.__class__))
+      raise TypeError("self: {} of type {}, other: {} of type {}"
+                      .format(self, self.__class__,
+                              other, other.__class__))
 
   def issubtypeof(self, other):
-    if isinstance(other, Object):
+    if self == other:
+      return True
+    elif isinstance(other, Object):
       return True
     elif isinstance(other, Nothing):
       return False
@@ -128,9 +130,9 @@ class Type(object):
     elif isinstance(other, Union):
       return other.issupertypeof(self)
     else:
-      raise NotImplementedError("self: {} of type {}, other: {} of type {}"
-                                .format(self, self.__class__,
-                                        other, other.__class__))
+      raise TypeError("self: {} of type {}, other: {} of type {}"
+                      .format(self, self.__class__,
+                              other, other.__class__))
 
   def issupertypeof(self, other):
     return other.issubtypeof(self)
@@ -307,25 +309,23 @@ class Union(Type):
         subtype_set |= ty.subtypes
       else:
         subtype_set.add(ty)
-    return subtype_set
+    return frozenset(subtype_set)
 
   def __new__(cls, subtypes, vm):
     subtype_set = cls._flatten_subtypes(subtypes)
     if len(subtype_set) == 1:
-      log.debug("Collapsing union: %r %r", subtypes, subtype_set)
       ty, = subtype_set
       return ty
     elif not subtype_set:
-      log.debug("Collapsing union: %r %r", subtypes, subtype_set)
       return Nothing(vm)
     else:
       return super(Union, cls).__new__(cls, subtype_set, vm)
 
   def __init__(self, _subtypes, vm):
     super(Union, self).__init__(vm)
-    _subtypes = self._flatten_subtypes(_subtypes)
-    assert _subtypes
-    self.subtypes = frozenset(_subtypes)
+    subtype_set = self._flatten_subtypes(_subtypes)
+    assert subtype_set
+    self.subtypes = subtype_set
 
   def join(self, other):
     if isinstance(other, Union):
@@ -373,7 +373,7 @@ class Union(Type):
     return False
 
   def visit(self, visitor):
-    result = Union((t.visit(visitor) for t in self.subtypes),
+    result = Union([t.visit(visitor) for t in self.subtypes],
                    self.vm)
     if hasattr(visitor, "visit_union"):
       return visitor.visit_union(result)
@@ -486,7 +486,7 @@ class Class(collections.namedtuple("ClassBase", ["class_members",
     name: The classes name.
   """
 
-  def __new__(cls, class_members, instance_members, name=None):
+  def __new__(cls, class_members, instance_members, name):
     return super(Class, cls).__new__(cls, class_members, instance_members, name)
 
   def __init__(self, class_members, instance_members, name):
@@ -501,6 +501,16 @@ class Class(collections.namedtuple("ClassBase", ["class_members",
 
   def __hash__(self):
     return hash(self.name)
+
+  def __eq__(self, other):
+    if isinstance(other, Class):
+      # We cannot compare member types here because that would create cycles in
+      # the comparison.
+      return self is other or (
+          self.name == other.name and
+          self.class_members.values() == other.class_members.values() and
+          self.instance_members.values() == other.instance_members.values())
+    return False
 
   def visit(self, visitor):
     result = Class(visit_dict_values(self.class_members, visitor),
@@ -549,7 +559,8 @@ class MRO(object):
 
   def __eq__(self, other):
     if isinstance(other, MRO):
-      return self._classes == other._classes  # pylint: disable=protected-access
+      # pylint: disable=protected-access
+      return self is other or self._classes == other._classes
     return False
 
   def __iter__(self):
@@ -666,8 +677,7 @@ def is_subsequence(left, right):
 
 
 def bind_self(tp):
-  # TODO(ampere): Is dropping the first argument enough? We may well need to
-  # give the call some information about the self type.
+  # TODO(ampere): We need to give the call some information about the self type.
   if isinstance(tp, Function):
     return Function(tp.argument_types[1:], tp.return_type, tp.vm)
   else:
