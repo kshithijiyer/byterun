@@ -566,6 +566,9 @@ class MRO(object):
   def __reversed__(self):
     return reversed(self.classes)
 
+  def __repr__(self):
+    return "MRO(({}))".format(", ".join(repr(c) for c in self.classes))
+
 
 class ClassConstructor(Function):
   """A class constructor function."""
@@ -714,9 +717,7 @@ class Instance(Type):
 
   def __init__(self, mro, other_members, vm, name=None):
     super(Instance, self).__init__(vm, name)
-    assert isinstance(mro, MRO)
     self.mro = mro
-    assert all(isinstance(v, Type) for v in other_members.values())
     self.other_members = other_members
 
   def join(self, other):

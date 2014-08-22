@@ -116,7 +116,7 @@ class ConstraintVirtualMachine(abstractvm.AncestorTraversalVirtualMachine):
     assert isinstance(attr, str)
     self.check_value_type(value)
     self.constraints.constrain_subtype(
-        obj, types.Instance(self.type_map[object].mro, {attr: value}, self))
+        types.Instance(self.type_map[object].mro, {attr: value}, self), obj)
 
   def get_locals_dict(self):
     return self.frame.f_locals

@@ -1,4 +1,4 @@
-"""Test the constraintvm without solving the constraints.
+"""Tests for the datalog constraint encoder.
 """
 
 import logging
@@ -8,6 +8,7 @@ import unittest
 
 
 from byterun.constraint import constraintvm
+from byterun.constraint import datalog_encoder
 from byterun.constraint import types
 
 log = logging.getLogger(__name__)
@@ -24,7 +25,6 @@ class ConstraintTest(unittest.TestCase):
     self.vm = constraintvm.ConstraintVirtualMachine()
     self.int_type = self.vm.type_map[int]
     self.float_type = self.vm.type_map[float]
-    self.object_type = self.vm.type_map[object]
 
   def generate_constraints(self, src):
     vm = self.vm
@@ -35,14 +35,22 @@ class ConstraintTest(unittest.TestCase):
       vm.run_code(src)
     vm.constraints.eliminate_equality_constrained_variables()
     vm.constraints.remove_constants()
+    encoder = datalog_encoder.DatalogEncoder()
+    encoder.generate(vm.constraints)
     print "=== source ==="
     print src
     print "=== targets ==="
     print "\n".join(repr(c) for c in vm.constraints.target_types)
     print "=== constraints ==="
     print "\n".join(repr(c) for c in vm.constraints)
-    print "==============="
     self.constraints = vm.constraints
+    self.results = encoder.solve()
+    self.rules = encoder.rules
+    try:
+      encoder.dump()
+    except IOError:
+      pass  # If dump fails it doesn't matter
+    self.assertTrue(self.results)
     return vm.constraints
 
   def assertHasSubtypeConstraint(self, left, right):
@@ -84,30 +92,6 @@ class ConstraintTest(unittest.TestCase):
       a.set_x(1.2)
       x2 = a.get_x()
     """)
-    set_x_type = self.find_type("set_x")
-    get_x_type = self.find_type("get_x")
-    self.assertHasSubtypeConstraint(
-        types.Instance(self.object_type.mro,
-                       {"x": set_x_type.argument_types[1]}, None),
-        set_x_type.argument_types[0]
-        )
-    self.assertHasSubtypeConstraint(
-        types.Instance(self.object_type.mro, {"x": self.int_type}, None),
-        set_x_type.argument_types[0]
-        )
-    self.assertHasSubtypeConstraint(
-        set_x_type.argument_types[0],
-        types.Instance(types.MRO(()), {"x": get_x_type.return_type}, None),
-        )
-    self.constraints.eliminate_trivially_super_bounded_variables()
-    self.assertHasSubtypeConstraint(
-        self.any_type_contravariant,
-        types.Instance(
-            types.MRO(()),
-            {"set_x":
-             types.Function((self.float_type,), self.any_type, None)},
-            None)
-        )
 
   def testSimpleClass(self):
     self.generate_constraints("""
@@ -121,21 +105,6 @@ class ConstraintTest(unittest.TestCase):
         def set_x(self, x):
           self.x = x
     """)
-    set_x_type = self.find_type("set_x")
-    get_x_type = self.find_type("get_x")
-    self.assertHasSubtypeConstraint(
-        types.Instance(self.object_type.mro,
-                       {"x": set_x_type.argument_types[1]}, None),
-        set_x_type.argument_types[0]
-        )
-    self.assertHasSubtypeConstraint(
-        types.Instance(self.object_type.mro, {"x": self.int_type}, None),
-        set_x_type.argument_types[0]
-        )
-    self.assertHasSubtypeConstraint(
-        set_x_type.argument_types[0],
-        types.Instance(types.MRO(()), {"x": get_x_type.return_type}, None),
-        )
 
   def testRelatedFunctions(self):
     self.generate_constraints("""
@@ -148,36 +117,18 @@ class ConstraintTest(unittest.TestCase):
       def h(y, z):
         return f(z) + g(y)
      """)
-    self.assertEqual(len(self.constraints.constraints), 12)
-    f_type = self.find_type("f")
-    self.assertHasSubtypeConstraint(
-        types.Function((types.Union((self.int_type, self.float_type), None),),
-                       self.float_type, None),
-        types.Function((self.any_type_contravariant,),
-                       f_type.return_type, None))
 
   def testSimpleFunctionPyTD(self):
     self.generate_constraints("""
       def f(y):
         return 1 + y
     """)
-    f_type = self.find_type("f")
-    self.assertHasSubtypeConstraint(
-        types.Function((self.int_type,), self.int_type, None),
-        f_type)
 
   def testSimpleFunction(self):
     self.generate_constraints("""
       def f(y):
         return y + 1
     """)
-    f_type = self.find_type("f")
-    constraint = self.assertHasSubtypeConstraint(
-        f_type.argument_types[0],
-        types.Instance(types.MRO(()), {"__add__": self.any_type}, None))
-    self.assertHasSubtypeConstraint(
-        constraint.right.other_members["__add__"],
-        types.Function((self.int_type,), f_type.return_type, None))
 
 
 if __name__ == "__main__":
