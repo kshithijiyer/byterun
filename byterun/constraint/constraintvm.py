@@ -137,6 +137,7 @@ class ConstraintVirtualMachine(abstractvm.AncestorTraversalVirtualMachine):
                       instance_members={},
                       name=name.get_single_value())
     mro = types.MRO(types.merge_mros(*([[cls]] + base_mros)))
+    # TODO(ampere): Make sure self parameters are properly erased.
     # TODO(ampere): Equate the first parameter with the new class object for
     # class methods.
     # TODO(ampere): Run the solver to simplify the type and then generate a

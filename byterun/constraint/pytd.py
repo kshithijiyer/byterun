@@ -20,6 +20,7 @@ def _load_pytd():
   global _builtin_pytds
   if not _builtin_pytds:
     _builtin_pytds = pytypedecl.parse.utils.GetBuiltins()
+    _builtin_pytds = _builtin_pytds.Visit(tdvisitors.StripSelf())
     _builtin_pytds = tdvisitors.LookupClasses(_builtin_pytds)
 
 

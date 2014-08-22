@@ -119,16 +119,13 @@ class Type(object):
   def issubtypeof(self, other):
     if self == other:
       return True
-    elif isinstance(other, Object):
-      return True
-    elif isinstance(other, Nothing):
-      return False
-    elif isinstance(other, Dynamic):
-      return False
+    elif isinstance(other, (Object, Nothing, Dynamic, Union)):
+      # This cannot produce an infinite loop because all of these types override
+      # issupertypeof with an implementation that does not rely on
+      # self.issubtypeof.
+      return other.issupertypeof(self)
     elif isinstance(other, ConstantType):
       return self.issubtypeof(other.value_type)
-    elif isinstance(other, Union):
-      return other.issupertypeof(self)
     else:
       raise TypeError("self: {} of type {}, other: {} of type {}"
                       .format(self, self.__class__,
@@ -198,13 +195,13 @@ class Object(Type):
     return other
 
   def issubtypeof(self, other):
-    return False
+    return self == other
 
   def issupertypeof(self, other):
     return True
 
   def __repr__(self):
-    return "object"
+    return "Top"
 
   def __hash__(self):
     return hash(Object)
@@ -234,7 +231,7 @@ class Nothing(Type):
     return True
 
   def issupertypeof(self, other):
-    return False
+    return self == other
 
   def getattr(self, attr):
     return Nothing(self.vm)
@@ -271,10 +268,10 @@ class Dynamic(Type):
     return self
 
   def issubtypeof(self, other):
-    return False
+    return self == other
 
   def issupertypeof(self, other):
-    return False
+    return self == other
 
   def getattr(self, attr):
     return Dynamic(self.vm)
@@ -469,12 +466,6 @@ def visit_dict_values(d, visitor):
   return new
 
 
-# class BoundFunction(Function):
-#   def __init__(self, self_type, argument_types, return_type, vm, name=None):
-#     super(BoundFunction, self).__init__(argument_types, return_type, vm, name)
-#     self.self_type = self_type
-
-
 class Class(collections.namedtuple("ClassBase", ["class_members",
                                                  "instance_members",
                                                  "name"])):
@@ -641,13 +632,9 @@ def dict_meet(*dicts):
 
 
 def dict_is_subtype(sub_dict, super_dict):
-  for name, sub_type in sub_dict.iteritems():
-    if name not in super_dict:
-      return False
-    super_type = super_dict[name]
-    if not sub_type.issubtypeof(super_type):
-      return False
-  return True
+  return all(name in sub_dict and
+             sub_dict[name].issubtypeof(super_type)
+             for name, super_type in super_dict.iteritems())
 
 
 def mro_to_structure(mro, overrides=None):
@@ -674,14 +661,6 @@ def is_subsequence(left, right):
   except StopIteration:
     return True
   raise NotImplementedError("Should never reach here")
-
-
-def bind_self(tp):
-  # TODO(ampere): We need to give the call some information about the self type.
-  if isinstance(tp, Function):
-    return Function(tp.argument_types[1:], tp.return_type, tp.vm)
-  else:
-    return tp
 
 
 def longest_common_subsequence(seq1, seq2):
@@ -772,7 +751,7 @@ class Instance(Type):
   def issubtypeof(self, other):
     if isinstance(other, Instance):
       return (is_subsequence(other.mro, self.mro) and
-              dict_is_subtype(self.other_members, other.get_structure()))
+              dict_is_subtype(self.get_structure(), other.other_members))
     elif isinstance(other, Function):
       # TODO(ampere): Change when __call__ is implemented.
       return False
@@ -789,8 +768,7 @@ class Instance(Type):
       return self.other_members[attr]
     for cls in self.mro:
       if attr in cls.class_members:
-        # TODO(ampere): Handle method wrapping.
-        return bind_self(cls.class_members[attr])
+        return cls.class_members[attr]
       elif attr in cls.instance_members:
         return cls.instance_members[attr]
     # raise AttributeError(attr)
