@@ -10,8 +10,6 @@ from byterun.constraint import constraint_store
 from byterun.constraint import types
 from pytypedecl.match import sat_problem
 
-# TODO(ampere): Replace this and MANY other cases in other files in this project
-# with _log and perhaps move the initialization.
 log = logging.getLogger(__name__)
 
 
