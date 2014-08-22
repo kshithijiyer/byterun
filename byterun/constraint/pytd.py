@@ -107,9 +107,9 @@ class PyTDImportVisitor(object):
     return self._cache_type(td, lambda: types.Union(td.type_list, self.vm))
 
   def VisitClassType(self, td):
-    if td.name == "object":
-      return self._cache_type(td, lambda: types.Object(self.vm))
-    elif td.cls:
+    # if td.name == "object":
+    #   return self._cache_type(td, lambda: types.Object(self.vm))
+    if td.cls:
       mro = self.mro_table[td.cls]
       return self._cache_type(
           td,
