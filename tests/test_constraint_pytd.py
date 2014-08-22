@@ -19,7 +19,7 @@ class PyTDTest(unittest.TestCase):
     self.assertEqual(self.builtins["int"].mro[0].name, "int")
     self.assertEqual(
         self.builtins["int"].get_structure()["__add__"].argument_types,
-        (self.builtins["object"], self.builtins["int"]))
+        (self.builtins["int"],))
     self.assertEqual(
         self.builtins["int"].get_structure()["__add__"].return_type,
         self.builtins["int"])

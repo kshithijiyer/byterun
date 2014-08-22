@@ -6,6 +6,7 @@ uses. AncestorTraversalVirtualMachine changes the execution order of basic
 blocks so that each only executes once.
 """
 
+import collections
 import logging
 
 
@@ -142,6 +143,10 @@ class AbstractVirtualMachine(pyvm2.VirtualMachine):
             self.push(value)
 
 
+VirtualMachineStackState = collections.namedtuple("VirtualMachineStackState", [
+    "data_stack", "block_stack", "frame"])
+
+
 class AncestorTraversalVirtualMachine(AbstractVirtualMachine):
     """An abstract interpreter implementing a traversal of basic blocks.
 
@@ -169,6 +174,8 @@ class AncestorTraversalVirtualMachine(AbstractVirtualMachine):
         """
         frame.block_table = self.cfg.get_block_table(frame.f_code)
         frame.order = frame.block_table.get_ancestors_first_traversal()
+        # A mapping from basic blocks to stack states
+        frame.block_start_stack = {}
         assert frame.f_lasti == 0
 
     def frame_traversal_next(self, frame):
@@ -186,6 +193,10 @@ class AncestorTraversalVirtualMachine(AbstractVirtualMachine):
         """
         head = frame.order[0]
         if frame.f_lasti < head.begin or frame.f_lasti > head.end:
+            # TODO(kramm): When a jump occurs we need to store stack states for
+            #              each of the possible targets in block_start_stack. It
+            #              may be possible to do this here, however you might
+            #              need to override the jump instructions.
             frame.order.pop(0)
             if not frame.order:
                 return False
@@ -194,6 +205,9 @@ class AncestorTraversalVirtualMachine(AbstractVirtualMachine):
                 log.debug("natural next %d, order next %d",
                           frame.f_lasti, head.begin)
             frame.f_lasti = head.begin
+            # TODO(kramm): Restore the stack state from block_start_stack if one
+            #              was stored. If there is not probably use the empty
+            #              stack.
         return True
 
     def run_frame(self, frame):

@@ -116,7 +116,7 @@ class ConstraintVirtualMachine(abstractvm.AncestorTraversalVirtualMachine):
     assert isinstance(attr, str)
     self.check_value_type(value)
     self.constraints.constrain_subtype(
-        obj, types.Instance(self.type_map[object].mro, {attr: value}, self))
+        types.Instance(self.type_map[object].mro, {attr: value}, self), obj)
 
   def get_locals_dict(self):
     return self.frame.f_locals
@@ -137,6 +137,7 @@ class ConstraintVirtualMachine(abstractvm.AncestorTraversalVirtualMachine):
                       instance_members={},
                       name=name.get_single_value())
     mro = types.MRO(types.merge_mros(*([[cls]] + base_mros)))
+    # TODO(ampere): Make sure self parameters are properly erased.
     # TODO(ampere): Equate the first parameter with the new class object for
     # class methods.
     # TODO(ampere): Run the solver to simplify the type and then generate a

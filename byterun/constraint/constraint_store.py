@@ -105,7 +105,7 @@ class ConstraintStore(object):
       is unknown.
     """
     if not type1.contains_variable() and not type2.contains_variable():
-      return type1.issubtypeof(type)
+      return type1.issubtypeof(type2)
     else:
       if SubtypeConstraint(type1, type2) in self.constraints:
         return True
